@@ -17,7 +17,9 @@ function run(
         !key.startsWith("__NEXT_") &&
         !key.startsWith("NEXT_") &&
         !key.startsWith("TURBOPACK") &&
-        key !== "NODE_APP_INSTANCE",
+        key !== "NODE_APP_INSTANCE" &&
+        key !== "NODE_OPTIONS" &&
+        key !== "NODE_ENV",
     ),
   );
   console.log("Parent NODE_ENV =", process.env.NODE_ENV);
