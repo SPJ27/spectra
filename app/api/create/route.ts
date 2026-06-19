@@ -7,7 +7,7 @@ function run(
   cmd: string,
   args: string[],
   cwd: string,
-  env: Record<string, string> = {}
+  env: Record<string, string> = {},
 ) {
   console.log("running", cmd, args);
 
@@ -17,9 +17,11 @@ function run(
         !key.startsWith("__NEXT_") &&
         !key.startsWith("NEXT_") &&
         !key.startsWith("TURBOPACK") &&
-        key !== "NODE_APP_INSTANCE"
-    )
+        key !== "NODE_APP_INSTANCE",
+    ),
   );
+  console.log("Parent NODE_ENV =", process.env.NODE_ENV);
+  console.log("Child NODE_ENV =", cleanEnv.NODE_ENV);
 
   return new Promise<void>((resolve, reject) => {
     const child = spawn(cmd, args, {
@@ -36,13 +38,16 @@ function run(
     child.on("close", (code) =>
       code === 0
         ? resolve()
-        : reject(new Error(`"${cmd}" exited with code ${code}`))
+        : reject(new Error(`"${cmd}" exited with code ${code}`)),
     );
   });
 }
 
 async function pathExists(p: string) {
-  return fs.stat(p).then(() => true).catch(() => false);
+  return fs
+    .stat(p)
+    .then(() => true)
+    .catch(() => false);
 }
 
 const PORT = "3001";
@@ -56,24 +61,29 @@ export async function POST(request: Request) {
   } catch {}
 
   try {
-    await fs.rm(path.join(target, "node_modules"), { recursive: true, force: true });
+    await fs.rm(path.join(target, "node_modules"), {
+      recursive: true,
+      force: true,
+    });
     await fs.rm(path.join(target, ".next"), { recursive: true, force: true });
 
-    const hasLockfile = await pathExists(path.join(target, "package-lock.json"));
+    const hasLockfile = await pathExists(
+      path.join(target, "package-lock.json"),
+    );
 
     if (hasLockfile) {
       await run("npm", ["ci"], target);
     } else {
       await run("npm", ["install"], target);
     }
-
+    console.log("NODE_ENV =", process.env.NODE_ENV);
     await run("npm", ["run", "build"], target);
 
     await run(
       "pm2",
       ["start", "npm", "--name", app_name, "--", "run", "start"],
       target,
-      { NODE_ENV: "production", PORT }
+      { NODE_ENV: "production", PORT },
     );
 
     const nginxConfig = `
@@ -103,8 +113,10 @@ server {
     return NextResponse.json({ message: "Repository deployed successfully!" });
   } catch (err: unknown) {
     return NextResponse.json(
-      { message: err instanceof Error ? err.message : "Unknown error occurred" },
-      { status: 500 }
+      {
+        message: err instanceof Error ? err.message : "Unknown error occurred",
+      },
+      { status: 500 },
     );
   }
 }
