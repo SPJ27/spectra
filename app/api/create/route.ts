@@ -109,8 +109,9 @@ server {
 
     await fs.writeFile(`/etc/nginx/conf.d/${domain}.conf`, nginxConfig, "utf8");
 
-    await run("sudo", ["nginx", "-t"], process.cwd());
-    await run("sudo", ["systemctl", "reload", "nginx"], process.cwd());
+    await run("nginx",["-t"], process.cwd());
+    await run("systemctl", ["reload", "nginx"], process.cwd());
+    await run("systemctl", ["reload", "nginx"], process.cwd());
 
     return NextResponse.json({ message: "Repository deployed successfully!" });
   } catch (err: unknown) {
