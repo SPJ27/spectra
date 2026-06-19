@@ -2,7 +2,7 @@ import { spawn } from "child_process";
 import path from "path";
 import { NextResponse } from "next/server";
 
-function run(cmd, args, cwd, env = {}) {
+function run(cmd: string, args: string[], cwd:string, env = {}) {
   console.log('running', cmd, args);
 
   const cleanEnv = Object.fromEntries(
@@ -14,7 +14,7 @@ function run(cmd, args, cwd, env = {}) {
     )
   );
 
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const child = spawn(cmd, args, {
       cwd,
       stdio: "inherit",
@@ -34,7 +34,7 @@ function run(cmd, args, cwd, env = {}) {
   });
 }
 
-export async function POST(request) {
+export async function POST(request: Request) {
   const { repo, app_name } = await request.json();
   const target = path.join(process.cwd(), "../deployments", app_name);
 
@@ -52,7 +52,7 @@ export async function POST(request) {
       { PORT: "3001" },
     );
     return NextResponse.json({ message: "Repository created successfully!" });
-  } catch (err) {
-    return NextResponse.json({ message: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ message: err instanceof Error ? err.message : "Unknown error occurred" }, { status: 500 });
   }
 }
