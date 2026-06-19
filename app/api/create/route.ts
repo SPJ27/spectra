@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 import path from "path";
+import fs from "fs/promises";
 import { NextResponse } from "next/server";
 
 function run(
@@ -8,14 +9,15 @@ function run(
   cwd: string,
   env: Record<string, string> = {}
 ) {
-  console.log('running', cmd, args);
+  console.log("running", cmd, args);
 
   const cleanEnv = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) =>
-      !key.startsWith('__NEXT_') &&
-      !key.startsWith('NEXT_') &&
-      !key.startsWith('TURBOPACK') &&
-      key !== 'NODE_APP_INSTANCE'
+    Object.entries(process.env).filter(
+      ([key]) =>
+        !key.startsWith("__NEXT_") &&
+        !key.startsWith("NEXT_") &&
+        !key.startsWith("TURBOPACK") &&
+        key !== "NODE_APP_INSTANCE"
     )
   );
 
@@ -26,11 +28,11 @@ function run(
       shell: true,
       env: {
         ...cleanEnv,
-        NODE_ENV: "production",
         PATH: process.env.PATH,
         ...env,
       } as unknown as NodeJS.ProcessEnv,
     });
+
     child.on("close", (code) =>
       code === 0
         ? resolve()
@@ -39,8 +41,14 @@ function run(
   });
 }
 
+async function pathExists(p: string) {
+  return fs.stat(p).then(() => true).catch(() => false);
+}
+
+const PORT = "3001";
+
 export async function POST(request: Request) {
-  const { repo, app_name } = await request.json();
+  const { repo, app_name, domain } = await request.json();
   const target = path.join(process.cwd(), "../deployments", app_name);
 
   try {
@@ -48,15 +56,51 @@ export async function POST(request: Request) {
   } catch {}
 
   try {
-    await run("npm", ["install"], target);
+    await fs.rm(path.join(target, "node_modules"), { recursive: true, force: true });
+    await fs.rm(path.join(target, ".next"), { recursive: true, force: true });
+
+    const hasLockfile = await pathExists(path.join(target, "package-lock.json"));
+
+    if (hasLockfile) {
+      await run("npm", ["ci"], target);
+    } else {
+      await run("npm", ["install"], target);
+    }
+
     await run("npm", ["run", "build"], target);
+
     await run(
       "pm2",
-      ["start", "npm", "--name", `${app_name}`, "--", "--", "run", "start"],
+      ["start", "npm", "--name", app_name, "--", "run", "start"],
       target,
-      { PORT: "3001" },
+      { NODE_ENV: "production", PORT }
     );
-    return NextResponse.json({ message: "Repository created successfully!" });
+
+    const nginxConfig = `
+server {
+    listen 80;
+    server_name ${domain};
+
+    location / {
+        proxy_pass http://127.0.0.1:${PORT};
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+`;
+
+    await fs.writeFile(`/etc/nginx/conf.d/${domain}.conf`, nginxConfig, "utf8");
+
+    await run("sudo", ["nginx", "-t"], process.cwd());
+    await run("sudo", ["systemctl", "reload", "nginx"], process.cwd());
+
+    return NextResponse.json({ message: "Repository deployed successfully!" });
   } catch (err: unknown) {
     return NextResponse.json(
       { message: err instanceof Error ? err.message : "Unknown error occurred" },
