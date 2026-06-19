@@ -58,9 +58,9 @@ export async function POST(request: Request) {
   } catch {}
 
   try {
-await run("npm", ["install"], target, { NODE_ENV: "development" });
-await run("npm", ["run", "build"], target, { NODE_ENV: "development" });
-
+await run("npm", ["install"], target);
+ await run("npm", ["run", "build"], target);
+   
 await run(
   "pm2",
   ["start", "npm", "--name", app_name, "--", "run", "start"],
