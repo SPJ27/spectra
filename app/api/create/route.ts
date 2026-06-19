@@ -3,11 +3,17 @@ import path from "path";
 import fs from "fs/promises";
 import { NextResponse } from "next/server";
 
+/*
+add env support
+asign port dynamically
+
+*/
+
 function run(
   cmd: string,
   args: string[],
   cwd: string,
-  env: Record<string, string> = {}
+  env: Record<string, string> = {},
 ) {
   console.log("running", cmd, args);
 
@@ -17,8 +23,8 @@ function run(
         !key.startsWith("__NEXT_") &&
         !key.startsWith("NEXT_") &&
         !key.startsWith("TURBOPACK") &&
-        key !== "NODE_APP_INSTANCE"
-    )
+        key !== "NODE_APP_INSTANCE",
+    ),
   );
 
   return new Promise<void>((resolve, reject) => {
@@ -28,16 +34,16 @@ function run(
       shell: true,
       env: {
         ...cleanEnv,
-        NODE_ENV: "production",
         PATH: process.env.PATH,
+        NODE_ENV: process.env.NODE_ENV,
         ...env,
-      },
+      } as NodeJS.ProcessEnv,
     });
 
     child.on("close", (code) =>
       code === 0
         ? resolve()
-        : reject(new Error(`"${cmd}" exited with code ${code}`))
+        : reject(new Error(`"${cmd}" exited with code ${code}`)),
     );
   });
 }
@@ -45,38 +51,25 @@ function run(
 export async function POST(request: Request) {
   const { repo, app_name, domain } = await request.json();
 
-  const target = path.join(
-    process.cwd(),
-    "../deployments",
-    app_name
-  );
+  const target = path.join(process.cwd(), "../deployments", app_name);
 
   try {
     await run("git", ["clone", repo, target], process.cwd());
   } catch {}
 
   try {
-    await run("npm", ["install"], target);
-    await run("npm", ["run", "build"], target);
+await run("npm", ["install"], target, { NODE_ENV: "development" });
+await run("npm", ["run", "build"], target, { NODE_ENV: "development" });
 
-    await run(
-      "pm2",
-      [
-        "start",
-        "npm",
-        "--name",
-        app_name,
-        "--",
-        "--",
-        "run",
-        "start",
-      ],
-      target,
-      {
-        PORT: "3001",
-      }
-    );
-
+await run(
+  "pm2",
+  ["start", "npm", "--name", app_name, "--", "run", "start"],
+  target,
+  {
+    NODE_ENV: "production",
+    PORT: "3001",
+  },
+);
     const nginxConfig = `
 server {
     listen 80;
@@ -96,18 +89,10 @@ server {
 }
 `;
 
-    await fs.writeFile(
-      `/etc/nginx/conf.d/${domain}.conf`,
-      nginxConfig,
-      "utf8"
-    );
+    await fs.writeFile(`/etc/nginx/conf.d/${domain}.conf`, nginxConfig, "utf8");
 
     await run("sudo", ["nginx", "-t"], process.cwd());
-    await run(
-      "sudo",
-      ["systemctl", "reload", "nginx"],
-      process.cwd()
-    );
+    await run("sudo", ["systemctl", "reload", "nginx"], process.cwd());
 
     return NextResponse.json({
       message: "Repository created successfully!",
@@ -115,14 +100,11 @@ server {
   } catch (err: unknown) {
     return NextResponse.json(
       {
-        message:
-          err instanceof Error
-            ? err.message
-            : "Unknown error occurred",
+        message: err instanceof Error ? err.message : "Unknown error occurred",
       },
       {
         status: 500,
-      }
+      },
     );
   }
 }
