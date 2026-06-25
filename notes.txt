@@ -1,0 +1,12 @@
+Workflow (backend):
+1. clones the repo
+2. installs node packages and builds the nextjs app
+3. starts the app using pm2 on specified port
+4. makes an nginx entry for reverse proxy
+5. tells the user to add the port and domain on nest
+
+
+TODO
+1. add error handling 
+2. add postgresql for dynamically asigning postgresql
+3. on the homepage, add a input in the center where you can directly paste gh urls

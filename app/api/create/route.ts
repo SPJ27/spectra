@@ -3,6 +3,12 @@ import path from "path";
 import fs from "fs/promises";
 import { NextResponse } from "next/server";
 
+/*
+TODO
+1. Add error handling for git clone, npm install, npm build, pm2 start, nginx reload
+2. Also, add postgres for storing busy ports and domains
+*/
+
 function run(
   cmd: string,
   args: string[],
